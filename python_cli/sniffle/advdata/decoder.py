@@ -2,13 +2,11 @@
 # Copyright (c) 2024, NCC Group plc
 # Released as open source under GPLv3
 
-# decode.py
-
 from struct import unpack
 from .ad_types import *
 from .msd_apple import AppleMSDRecord
 from .msd_microsoft import MicrosoftMSDRecord
-from .msd_remoteid import parse_advertising_data
+from .msd_remoteid import parse_advertising_data, decode_remote_id
 
 # Dictionary mapping company identifiers to corresponding MSD record classes
 company_msd_decoders = {
@@ -42,13 +40,14 @@ ad_type_classes = {
     0xFF: parse_advertising_data  # Mapping 0xFF to the Remote ID decoding function
 }
 
-# Function to decode remote ID data
-def parse_advertising_data(data):
-    # Check if it's Remote ID data (0xFF service data)
-    if data[0] == 0xFF:
-        return decode_remote_id(data)
+def record_from_type_data(data_type: int, data: bytes):
+    if data_type in ad_type_classes:
+        try:
+            return ad_type_classes[data_type](data_type, data)
+        except:
+            return AdvDataRecord(data_type, data, malformed=True)
     else:
-        return None  # Return None if not Remote ID data
+        return AdvDataRecord(data_type, data)
 
 def decode_adv_data(data):
     records = []
