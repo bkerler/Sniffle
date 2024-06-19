@@ -174,3 +174,37 @@ class ManufacturerSpecificDataRecord(AdvDataRecord):
         lines.append("Data Length: %d" % len(self.company_data))
         lines.append("Data: %s" % repr(self.company_data))
         return lines
+
+class RemoteIDRecord(AdvDataRecord):
+    def __init__(self, data_type: int, data: bytes):
+        super().__init__(data_type, data)
+        self.service, = unpack('<H', self.data[:2])
+        self.service_data = self.data[2:]
+        self.message_counter = self.service_data[0]
+        self.messages = []
+
+        # Process the message pack
+        message_size = self.service_data[2]
+        message_quantity = self.service_data[3]
+        offset = 4
+
+        for _ in range(message_quantity):
+            message_type = self.service_data[offset] >> 4
+            message_version = self.service_data[offset] & 0x0F
+            self.messages.append({
+                "type": message_type,
+                "version": message_version,
+                "data": self.service_data[offset:offset + message_size]
+            })
+            offset += message_size
+
+    def str_lines(self):
+        lines = [self.str_type()]
+        lines.append("Service: %s" % str_service16(self.service))
+        lines.append("Message Counter: %d" % self.message_counter)
+        for message in self.messages:
+            lines.append("Message Type: %d" % message["type"])
+            lines.append("Message Version: %d" % message["version"])
+            lines.append("Message Data: %s" % repr(message["data"]))
+        return lines
+
