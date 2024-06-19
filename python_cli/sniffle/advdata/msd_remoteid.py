@@ -1,6 +1,7 @@
 # msd_remoteid.py
 
 def decode_basic_id(data):
+    print("decode_basic_id function called")
     id_type = data[0] >> 4
     ua_type = data[0] & 0x0F
     drone_id = data[1:].decode('utf-8')  # Assuming drone ID is ASCII string
