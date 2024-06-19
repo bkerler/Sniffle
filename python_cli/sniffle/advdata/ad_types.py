@@ -178,17 +178,28 @@ class ManufacturerSpecificDataRecord(AdvDataRecord):
 class RemoteIDRecord(AdvDataRecord):
     def __init__(self, data_type: int, data: bytes):
         super().__init__(data_type, data)
+        if len(data) < 2:
+            raise ValueError("Data too short to decode service UUID")
+
         self.service, = unpack('<H', self.data[:2])
         self.service_data = self.data[2:]
+
+        # Add specific Remote ID parsing logic here
+        # Example fields (you should adapt to your specific data format)
         self.message_counter = self.service_data[0]
         self.messages = []
 
-        # Process the message pack
+        # Ensure there's enough data for message pack
+        if len(self.service_data) < 4:
+            raise ValueError("Service data too short")
+
         message_size = self.service_data[2]
         message_quantity = self.service_data[3]
         offset = 4
 
         for _ in range(message_quantity):
+            if offset + message_size > len(self.service_data):
+                raise ValueError("Not enough data for message")
             message_type = self.service_data[offset] >> 4
             message_version = self.service_data[offset] & 0x0F
             self.messages.append({
@@ -207,4 +218,3 @@ class RemoteIDRecord(AdvDataRecord):
             lines.append("Message Version: %d" % message["version"])
             lines.append("Message Data: %s" % repr(message["data"]))
         return lines
-
