@@ -6,6 +6,7 @@ from struct import unpack
 from .ad_types import *
 from .msd_apple import AppleMSDRecord
 from .msd_microsoft import MicrosoftMSDRecord
+from .msd_remoteid import RemoteIDRecord
 
 company_msd_decoders = {
     0x0006: MicrosoftMSDRecord,
@@ -14,8 +15,10 @@ company_msd_decoders = {
 
 def decode_msd(data_type: int, data: bytes):
     company, = unpack("<H", data[:2])
-    if company in company_msd_decoders:
-        return company_msd_decoders[company](data_type, data)
+    if company == 0x004C:  # Apple's company identifier
+        return AppleMSDRecord(data_type, data)
+    elif company == 0x0006:  # Microsoft's company identifier
+        return MicrosoftMSDRecord(data_type, data)
     else:
         return ManufacturerSpecificDataRecord(data_type, data)
 
@@ -36,6 +39,33 @@ ad_type_classes = {
     0x21: ServiceData128Record,
     0xFF: decode_msd
 }
+
+def decode_remote_id(data_type: int, data: bytes):
+    # Implement your Remote ID decoding logic here
+    service, = unpack('<H', data[:2])
+    service_data = data[2:]
+
+    message_counter = service_data[0]
+    messages = []
+
+    # Process the message pack
+    message_size = service_data[2]
+    message_quantity = service_data[3]
+    offset = 4
+
+    for _ in range(message_quantity):
+        message_type = service_data[offset] >> 4
+        message_version = service_data[offset] & 0x0F
+        message_data = service_data[offset + 1: offset + 1 + message_size]
+        messages.append({
+            "type": message_type,
+            "version": message_version,
+            "data": message_data
+        })
+        offset += 1 + message_size
+
+    return RemoteIDRecord(data_type, data, message_counter, messages)  # Replace with appropriate class
+
 
 def record_from_type_data(data_type: int, data: bytes):
     if data_type in ad_type_classes:
