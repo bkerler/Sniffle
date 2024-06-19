@@ -112,6 +112,7 @@ def decode_remote_id(data):
         return {'type': 'Unknown'}
 
 def parse_advertising_data(advertising_data):
+    print("Parsing advertising data:", advertising_data)
     # Extract Service Data - 16 bit UUID details
     if advertising_data[0] == 0x16:
         uuid16 = (advertising_data[2] << 8) | advertising_data[1]
