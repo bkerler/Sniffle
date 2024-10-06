@@ -82,6 +82,7 @@ class PacketMessage:
             self.crc_rev = -1
         else:
             self.crc_rev = crc_ble_reverse(dstate.crc_init_rev, body)
+        self.pkt = self.to_dict()
 
     @staticmethod
     def from_body(body, is_data=False, slave_send=False, is_aux_adv=False):
@@ -106,8 +107,8 @@ class PacketMessage:
                 self.event, repr(self.body))
 
     def to_dict(self):
-        return {type(self).__name__:{"ts": self.ts, "aa": self.aa, "rssi": self.rssi, "chan": self.chan,
-                "phy": self.phy, "event": self.event, "body": self.body.hex()}}
+        return {"ts": self.ts, "aa": self.aa, "rssi": self.rssi, "chan": self.chan,
+                "phy": self.phy, "event": self.event, "body": self.body.hex()}
 
     def str_header(self):
         phy_names = ["1M", "2M", "Coded (S=8)", "Coded (S=2)"]
@@ -143,6 +144,7 @@ class DPacketMessage(PacketMessage):
         self.crc_err = pkt.crc_err
         self.event = pkt.event
         self.crc_rev = pkt.crc_rev
+        self.pkt = pkt.to_dict()
 
     def _str_decode(self):
         raise NotImplementedError("Use a derived class")
@@ -188,7 +190,7 @@ class AdvertMessage(DPacketMessage):
         return atstr
 
     def dict_adtype(self):
-        res = {} #self.to_dict()
+        res = {}
         res["ChSel"]=self.ChSel
         res["TxAdd"]=self.TxAdd
         res["RxAdd"]=self.RxAdd
@@ -197,9 +199,6 @@ class AdvertMessage(DPacketMessage):
 
     def _str_decode(self):
         return self.str_adtype()
-
-    def to_dict(self):
-        return self.dict_adtype()
 
     @staticmethod
     def decode(pkt: PacketMessage, dstate=None):
@@ -347,8 +346,8 @@ class LlControlMessage(DataMessage):
             self.str_opcode()])
 
     def to_dict(self):
-        return {self.pdutype:{"DataType":self.dict_datatype(),
-                "Opcode":self.dict_opcode()}}
+        return {self.pdutype:self.pkt,"DataType":self.dict_datatype(),
+                "Opcode":self.dict_opcode()}
 
 class AdvaMessage(AdvertMessage):
     def __init__(self, pkt: PacketMessage):
@@ -365,8 +364,8 @@ class AdvaMessage(AdvertMessage):
             self.str_adva()])
 
     def to_dict(self):
-        res={self.pdutype:{"Pkt":self.dict_adtype(),
-                "AdvA":str_mac2(self.AdvA, self.TxAdd)}}
+        res={self.pdutype:self.pkt}
+        res["AdvA"]=str_mac2(self.AdvA, self.TxAdd)
         if len(self.adv_data)>0:
             res["AdvData"]=self.adv_data.hex()
         return res
@@ -404,7 +403,7 @@ class AdvDirectIndMessage(AdvertMessage):
             self.str_ata()])
 
     def to_dict(self):
-        return {self.pdutype:{"Pkt":self.dict_adtype(),"ata":self.dict_ata(),"AdvData":self.adv_data.hex()}}
+        return {self.pdutype:self.pkt,"adtype":self.dict_adtype(),"ata":self.dict_ata(),"AdvData":self.adv_data.hex()}
 
 class ScanReqMessage(AdvertMessage):
     pdutype = "SCAN_REQ"
@@ -426,7 +425,7 @@ class ScanReqMessage(AdvertMessage):
             self.str_asa()])
 
     def to_dict(self):
-        return {self.pdutype:{"Pkt":self.dict_adtype(),"asa":self.str_asa()}}
+        return {self.pdutype:self.pkt,"adtype":self.dict_adtype(),"asa":self.str_asa()}
 
 class AuxScanReqMessage(ScanReqMessage):
     pdutype = "AUX_SCAN_REQ"
@@ -454,7 +453,7 @@ class ConnectIndMessage(AdvertMessage):
     def dict_aia(self):
         return {"InitA":str_mac2(self.InitA, self.TxAdd),
                 "AdvA":str_mac2(self.AdvA, self.RxAdd),
-                "AA": self.aa_conn,
+                "aa": self.aa_conn,
                 "CRCInit": self.CRCInit}
 
     def str_conn_params(self):
@@ -505,8 +504,8 @@ class ConnectIndMessage(AdvertMessage):
             self.str_chm()])
 
     def to_dict(self):
-        return {self.pdutype:{"Pkt":self.dict_adtype(),"aia":self.dict_aia(),
-                "conn_params":self.dict_conn_params(),"chm":self.dict_chm()}}
+        return {self.pdutype:self.pkt,"adtype":self.dict_adtype(),"aia":self.dict_aia(),
+                "conn_params":self.dict_conn_params(),"chm":self.dict_chm()}
 
 class AuxConnectReqMessage(ConnectIndMessage):
     pdutype = "AUX_CONNECT_REQ"
@@ -660,7 +659,7 @@ class AdvExtIndMessage(AdvertMessage):
             self.str_aext()])
 
     def to_dict(self):
-        return {self.pdutype: {"Pkt":self.dict_adtype(), "aext": self.dict_aext(), "AdvData":self.adv_data.hex()}}
+        return {self.pdutype:self.pkt,"adtype":self.dict_adtype(), "aext": self.dict_aext(), "AdvData":self.adv_data.hex()}
 
 def get_adi(pkt: PacketMessage):
     dpkt = AdvExtIndMessage(pkt)
