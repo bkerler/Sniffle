@@ -59,14 +59,13 @@ def main():
             help="Decode advertising data")
     aparse.add_argument("-o", "--output", default=None, help="PCAP output file name")
     aparse.add_argument("-z", "--zmq", action="store_true", help="Enable zmq")
-    aparse.add_argument("--zmqport", default="4222", help="Define zmq port")
-    aparse.add_argument("--zmqhost", default="127.0.0.1", help="Define zmq host")
+    aparse.add_argument("--zmqsetting", default="127.0.0.1:4222", help="Define zmq server settings")
     args = aparse.parse_args()
 
     if args.zmq:
         import zmq
 
-        url = f"tcp://{args.zmqhost}:{args.zmqport}"
+        url = f"tcp://{args.zmqsetting}"
 
         context = zmq.Context()
         socket = context.socket(zmq.XPUB)
