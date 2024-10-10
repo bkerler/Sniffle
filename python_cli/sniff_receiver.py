@@ -176,6 +176,7 @@ def main():
                 smsg = msg.to_dict()
                 smsg = json.dumps(smsg)
                 socket.send_string(smsg)
+                print_message(msg, args.quiet, args.decode)
             else:
                 print_message(msg, args.quiet, args.decode)
         except SourceDone:
