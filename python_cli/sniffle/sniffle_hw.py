@@ -7,7 +7,7 @@ from serial import Serial, SerialTimeoutException
 from struct import pack, unpack
 from base64 import b64encode, b64decode
 from binascii import Error as BAError
-from time import time
+from time import time, sleep
 from random import randint, randrange
 from serial.tools.list_ports import comports
 from traceback import format_exception
@@ -80,9 +80,9 @@ def is_cp2102(serport):
                 return True
     return False
 
-def make_sniffle_hw(serport=None, baudrate=921600, logger=None, timeout=None):
+def make_sniffle_hw(serport=None, logger=None, timeout=None, baudrate=None):
     if serport is None:
-        return SniffleHW(serport, logger, timeout)
+        return SniffleHW(serport, logger, timeout, baudrate)
     elif serport.startswith('rfnm'):
         from .sniffle_sdr import SniffleSoapySDR
         if ':' in serport:
@@ -96,34 +96,35 @@ def make_sniffle_hw(serport=None, baudrate=921600, logger=None, timeout=None):
         fname = serport[5:]
         return SniffleFileSDR(fname, logger=logger)
     else:
-        return SniffleHW(serport, baudrate, logger, timeout)
+        return SniffleHW(serport, logger, timeout, baudrate)
 
 class SniffleHW:
     max_interval_preload_pairs = 4
     api_level = 0
 
-    def __init__(self, serport=None, baudrate=None, logger=None, timeout=None):
+    def __init__(self, serport=None, logger=None, timeout=None, baudrate=None):
         if baudrate is None:
             baud = 2000000
         else:
             baud = int(baudrate)
-        if serport is None:
+        while serport is None:
             serport = find_xds110_serport()
-            if serport is None:
-                serport = find_sonoff_serport()
-                if serport is None:
-                    serport = find_catsniffer_v3_serport()
-                    if serport is None:
-                        raise IOError("Sniffle device not found")
-                elif baudrate is None:
-                    baud = 921600
-        elif is_cp2102(serport):
+            if serport is not None: break
+            serport = find_sonoff_serport()
+            if serport is not None: break
+            serport = find_catsniffer_v3_serport()
+            if serport is not None: 
+                baud = 921600
+                break
+            raise IOError("Sniffle device not found")
+       if is_cp2102(serport):
             if baudrate is None:
                 baud = 921600
 
+
         self.timeout = timeout
         self.decoder_state = SniffleDecoderState()
-        self.ser = Serial(serport, baud, timeout=timeout)
+        self.ser = Serial(serport, baudrate, timeout=timeout)
         self.recv_cancelled = False
         self.logger = logger if logger else TrivialLogger()
         self.cmd_marker(b'@') # command sync
@@ -191,7 +192,7 @@ class SniffleHW:
     def cmd_marker(self, data=b''):
         self._send_cmd([0x18, *data])
 
-    # Provide a PDU to transmit, when in master or slave modes
+    # Provide a PDU to transmit, when in central or peripheral modes
     def cmd_transmit(self, llid, pdu, event=0):
         if not (0 <= llid <= 3):
             raise ValueError("Out of bounds LLID")
@@ -202,7 +203,7 @@ class SniffleHW:
         self._send_cmd([0x19, event & 0xFF, event >> 8, llid, len(pdu), *pdu])
 
     # Initiate a connection by transmitting a CONNECT_IND PDU to the specified peer,
-    # then transitioning to a connected master state
+    # then transitioning to a connected central state
     def cmd_connect(self, peerAddr, llData, is_random=True):
         if len(peerAddr) != 6:
             raise ValueError("Invalid peer address")
@@ -248,7 +249,7 @@ class SniffleHW:
                 self._send_cmd([0x14])
 
     # Should the sniffer immediately hop to the next channel in the connection hop sequence
-    # when master and slave stop talking in the current connection event, rather than waiting
+    # when central and peripheral stop talking in the current connection event, rather than waiting
     # till the hop interval ends. Useful when hop interval is unknown in an encrypted connection.
     def cmd_instahop(self, enable=True):
         if enable:
@@ -424,10 +425,14 @@ class SniffleHW:
         marker_data = pack('<I', randrange(0x100000000))
         self.cmd_marker(marker_data)
         recvd_mark = False
+        timeout = 0
         while not recvd_mark:
             msg = self.recv_and_decode(True)
             if isinstance(msg, MarkerMessage) and msg.marker_data == marker_data:
                 recvd_mark = True
+            timeout+=1
+            if timeout > 1000:
+                break
 
     def probe_fw_version(self):
         self.cmd_version()

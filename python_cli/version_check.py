@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # Written by Sultan Qasim Khan
-# Copyright (c) 2024, NCC Group plc
+# Copyright (c) 2024-2025, NCC Group plc
 # Released as open source under GPLv3
 
 import argparse
@@ -10,7 +10,7 @@ from sniffle.sniffle_hw import SniffleHW
 def main():
     aparse = argparse.ArgumentParser(description="Sniffle firmware version check utility")
     aparse.add_argument("-s", "--serport", default=None, help="Sniffer serial port name")
-    aparse.add_argument("-b", "--baudrate", default=None, help="Sniffer serial port baudrate")
+    aparse.add_argument("-b", "--baudrate", default=None, help="Sniffer serial port baud rate")
     args = aparse.parse_args()
 
     hw = SniffleHW(args.serport, baudrate=args.baudrate, timeout=0.1)

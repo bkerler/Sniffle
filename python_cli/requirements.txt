@@ -2,6 +2,3 @@ pyserial
 zmq
 numpy
 scipy
-
-
-

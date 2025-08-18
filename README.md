@@ -18,7 +18,7 @@ Sniffle has a number of useful features, including:
 * Easy to extend host-side software written in Python
 * PCAP export compatible with the Ubertooth
 * Wireshark compatible plugin
-* ZMQ Subscribing server
+* ZMQ Publishing server
 
 ## Prerequisites
 
@@ -34,7 +34,7 @@ Sniffle has a number of useful features, including:
     * SONOFF CC2652P USB Dongle Plus: <https://itead.cc/product/sonoff-zigbee-3-0-usb-dongle-plus/>
     * EC Catsniffer V3 CC1352 & RP2040 <https://github.com/ElectronicCats/CatSniffer>
 * ARM GNU Toolchain for AArch32 bare-metal target (arm-none-eabi): <https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads>
-* TI SimpleLink Low Power F2 SDK 7.41.00.17: <https://www.ti.com/tool/download/SIMPLELINK-LOWPOWER-F2-SDK/7.41.00.17>
+* TI SimpleLink Low Power F2 SDK 8.30.01.01: <https://www.ti.com/tool/download/SIMPLELINK-LOWPOWER-F2-SDK/8.30.01.01>
 * TI DSLite Programmer Software: see below
 * Python 3.9+ with PySerial installed
 
@@ -61,7 +61,7 @@ expect this path, so I suggest just going with the default here. The same
 applies for the TI SysConfig tool.
 
 Once the SDK has been extracted, you will need to edit one makefile to match
-your build environment. Within `~/ti/simplelink_cc13xx_cc26xx_sdk_7_41_00_17`
+your build environment. Within `~/ti/simplelink_cc13xx_cc26xx_sdk_8_30_01_01`
 (or wherever the SDK was installed) there is a makefile named `imports.mak`.
 The only paths that need to be set here to build Sniffle are for GCC, XDC,
 cmake and SysConfig. We don't need the CCS compiler. See the diff below as
@@ -69,7 +69,7 @@ an example, and adapt for wherever you installed things.
 
 ```
 diff --git a/imports.mak b/imports.mak
-index d3900b5b6..e7108c3df 100644
+index b2cf5bf59..389d1a7c3 100644
 --- a/imports.mak
 +++ b/imports.mak
 @@ -18,14 +18,14 @@
@@ -77,20 +77,57 @@ index d3900b5b6..e7108c3df 100644
  #
  
 -XDC_INSTALL_DIR        ?= /home/username/ti/xdctools_3_62_01_15_core
--SYSCONFIG_TOOL         ?= /home/username/ti/ccs1230/ccs/utils/sysconfig_1.18.1/sysconfig_cli.sh
+-SYSCONFIG_TOOL         ?= /home/username/ti/ccs1270/ccs/utils/sysconfig_1.21.1/sysconfig_cli.sh
 +XDC_INSTALL_DIR        ?= $(HOME)/ti/xdctools_3_62_01_15_core
-+SYSCONFIG_TOOL         ?= $(HOME)/ti/sysconfig_1.18.1/sysconfig_cli.sh
++SYSCONFIG_TOOL         ?= $(HOME)/ti/sysconfig_1.21.1/sysconfig_cli.sh
  
 -CMAKE                  ?= /home/username/cmake-3.21.3/bin/cmake
 +CMAKE                  ?= cmake
  PYTHON                 ?= python3
  
- TICLANG_ARMCOMPILER    ?= /home/username/ti/ccs1230/ccs/tools/compiler/ti-cgt-armllvm_3.2.0.LTS-0
--GCC_ARMCOMPILER        ?= /home/username/arm-none-eabi-gcc/9.2019.q4.major-0
-+GCC_ARMCOMPILER        ?= $(HOME)/arm_tools/arm-gnu-toolchain-13.3.rel1-x86_64-arm-none-eabi
- IAR_ARMCOMPILER        ?= /home/username/iar9.40.2
+ TICLANG_ARMCOMPILER    ?= /home/username/ti/ccs1270/ccs/tools/compiler/ti-cgt-armllvm_3.2.2.LTS-0
+-GCC_ARMCOMPILER        ?= /home/username/arm-none-eabi-gcc/12.3.Rel1-0
++GCC_ARMCOMPILER        ?= $(HOME)/arm_tools/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi
+ IAR_ARMCOMPILER        ?= /home/username/iar9.50.2
  
  # Uncomment this to enable the TFM build
+```
+
+As of SDK version 8.30.01.01, to compile with recent versions of GCC (and binutils),
+a small modification to the SDK is needed to avoid linking errors
+"Unknown destination type (ARM/Thumb)" and "dangerous relocation: unsupported relocation".
+
+```
+diff --git a/kernel/tirtos7/packages/ti/sysbios/family/arm/m3/Hwi_asm_gcc.s b/kernel/tirtos7/packages/ti/sysbios/family/arm/m3/Hwi_asm_gcc.s
+index 187cfd744..4cbf0d384 100644
+--- a/kernel/tirtos7/packages/ti/sysbios/family/arm/m3/Hwi_asm_gcc.s
++++ b/kernel/tirtos7/packages/ti/sysbios/family/arm/m3/Hwi_asm_gcc.s
+@@ -236,6 +236,7 @@ lab$1:
+ @ user code has set the PRIMASK and not cleared it, or when single
+ @ stepping with interrupts disabled.
+ 
++.type ti_sysbios_family_arm_m3_Hwi_interruptsAreDisabledButShouldNotBe, %function
+ ti_sysbios_family_arm_m3_Hwi_interruptsAreDisabledButShouldNotBe:
+         b   ti_sysbios_family_arm_m3_Hwi_interruptsAreDisabledButShouldNotBe
+ 
+diff --git a/kernel/tirtos7/packages/ti/sysbios/family/arm/v8m/Hwi_asm_gcc.s b/kernel/tirtos7/packages/ti/sysbios/family/arm/v8m/Hwi_asm_gcc.s
+index 717f49c9a..1c83ed725 100644
+--- a/kernel/tirtos7/packages/ti/sysbios/family/arm/v8m/Hwi_asm_gcc.s
++++ b/kernel/tirtos7/packages/ti/sysbios/family/arm/v8m/Hwi_asm_gcc.s
+@@ -226,6 +226,7 @@ lab$1:
+ @ user code has set the PRIMASK and not cleared it, or when single
+ @ stepping with interrupts disabled.
+ 
++.type ti_sysbios_family_arm_v8m_Hwi_interruptsAreDisabledButShouldNotBe, %function
+ ti_sysbios_family_arm_v8m_Hwi_interruptsAreDisabledButShouldNotBe:
+         b   ti_sysbios_family_arm_v8m_Hwi_interruptsAreDisabledButShouldNotBe
+```
+
+After making this modification, you will need to recompile the SDK.
+
+```
+cd ~/ti/simplelink_cc13xx_cc26xx_sdk_8_30_01_01
+make build-gcc -j5
 ```
 
 ### Obtaining DSLite
@@ -128,38 +165,34 @@ the compiled `sniffle.hex` binary using the UniFlash GUI.
 
 ## Firmware Installation (SONOFF USB Dongle)
 
-To install Sniffle on a SONOFF CC2652P dongle (equipped with a CP2102 USB/UART
-bridge), you need to use a special firmware build that uses a 921600 baud rate
-(labelled `1M`) instead of the default 2 megabit baud rate. You can use
-[JelmerT/cc2538-bsl](https://github.com/JelmerT/cc2538-bsl) to flash the firmware
-using the built-in ROM bootloader with the following command:
+To install Sniffle on a SONOFF CC2652P dongle (equipped with a CP2102N USB/UART
+bridge), use the [JelmerT/cc2538-bsl](https://github.com/JelmerT/cc2538-bsl) utility
+to flash the firmware using the built-in ROM bootloader with the following command:
 
 ```
-python3 cc2538-bsl.py -p /dev/ttyUSB0 --bootloader-sonoff-usb -ewv sniffle_cc1352p1_cc2652p1_1M.hex
+python3 cc2538-bsl.py -p /dev/ttyUSB0 --bootloader-sonoff-usb -ewv sniffle_cc1352p1_cc2652p1.hex
 ```
 
-As of April 23, 2024, there are a couple bugs in `cc2538-bsl` for which
-pull requests [168](https://github.com/JelmerT/cc2538-bsl/pull/168) and
-[173](https://github.com/JelmerT/cc2538-bsl/pull/173) need to be merged to fix.
-In the interim, while waiting for those pull requests to be merged, you can use
-my fork at <https://github.com/sultanqasim/cc2538-bsl>.
+As of January 10, 2025, there is a bug in `cc2538-bsl` that prevents it from
+resetting the CC2562P chip in the Sonoff dongle after flashing. The fix for this
+is in pull request [173](https://github.com/JelmerT/cc2538-bsl/pull/173), which
+has yet to be merged. In the interim, while waiting for the pull request to be
+merged, you can use my fork at <https://github.com/sultanqasim/cc2538-bsl>.
+
+In 2022, due to COVID-19 pandemic chip shortages, some Sonoff CC2652P dongles were
+built with CP2102 (non-N) USB/UART bridge chips that are capped at 921600 baud. If
+you have one of these, you will need to flash a different firmware image that uses
+a slower baud rate of 921600. This special slower baud rate build is named
+`sniffle_cc1352p1_cc2652p1_1M.hex` (build variant `CC2652P1F_1M`). You will also
+need to invoke Sniffle utilities with the option `-b 921600` to override the
+default baud rate of 2000000.
 
 **WARNING:** Do not flash the wrong build variant using the bootloader, or you
 risk bricking the device and locking yourself out of the bootloader. For Sonoff
-CC2652P devices, use the `sniffle_cc1352p1_cc2652p1_1M.hex` file (`CC2652P1F_1M`
-build variant). If you flash the wrong variant and lock yourself out of the
-bootloader, it may be possible to recover the device using JTAG/SWD.
-
-Newer Sonoff dongles contain a CP2102N instead of the old CP2102. The CP2102N
-supports higher baud rates, including 2M and 3M baud. However, there is no easy
-and cross-platform way to distinguish between the CP2102 and CP2102N in software.
-Thus, the Sniffle host software expects the `1M` (921600 baud) firmware on all
-devices with a CP2102/CP2102N USB/UART bridge. This slower baud rate should be fine
-for nearly all use cases, though in theory it may be possible to saturate the
-UART interface with the 2M PHY. If you really want to use the full 2M baud rate
-on your newer CP2102N equipped Sonoff (or other brand) dongle, you can flash the
-full baud rate firmware and modify `sniffle_hw.py` to not lower the baud rate for
-CP2102 devices.
+CC2652P devices, use the `sniffle_cc1352p1_cc2652p1.hex` file (`CC2652P1F` build
+variant) or the sniffle_cc1352p1_cc2652p1_1M.hex` file (`CC2652P1F_1M` build
+variant) for a 921600 baud rate. If you flash the wrong variant and lock yourself
+out of the bootloader, it may be possible to recover the device using JTAG/SWD.
 
 ## Firmware Installation (Catsniffer V3)
 
@@ -214,9 +247,9 @@ the device using JTAG/SWD.
 
 ```
 [skhan@serpent python_cli]$ ./sniff_receiver.py --help
-usage: sniff_receiver.py [-h] [-s SERPORT] [-c {37,38,39}] [-p] [-r RSSI] [-m MAC] [-i IRK]
-                         [-S STRING] [-a] [-A] [-e] [-H] [-l] [-q] [-Q PRELOAD] [-n] [-C]
-                         [-d] [-o OUTPUT]
+usage: sniff_receiver.py [-h] [-s SERPORT] [-b BAUDRATE] [-c {37,38,39}] [-p] [-r RSSI]
+                         [-m MAC] [-i IRK] [-S STRING] [-a] [-A] [-e] [-H] [-l] [-q]
+                         [-Q PRELOAD] [-n] [-C] [-d] [-o OUTPUT]
 
 Host-side receiver for Sniffle BLE5 sniffer
 
@@ -224,6 +257,8 @@ options:
   -h, --help            show this help message and exit
   -s SERPORT, --serport SERPORT
                         Sniffer serial port name
+  -b BAUDRATE, --baudrate BAUDRATE
+                        Sniffer serial port baud rate
   -c {37,38,39}, --advchan {37,38,39}
                         Advertising channel to listen on
   -p, --pause           Pause sniffer after disconnect
@@ -245,6 +280,8 @@ options:
   -d, --decode          Decode advertising data
   -o OUTPUT, --output OUTPUT
                         PCAP output file name
+  -z, --zmq             Enable ZMQ server
+  --zmqsetting          Set ZMQ server ip and port (Default 127.0.0.1:4222)
 ```
 
 The XDS110 debugger on the Launchpad boards creates two serial ports. On
@@ -330,7 +367,7 @@ integers. Interval is an integer representing multiples of 1.25 ms (as defined
 in LL\_CONNECTION\_UPDATE\_IND). DeltaInstant is the number of connection events
 between when the connection update packet is transmitted and when the new
 parameters are applied. DeltaInstant must be greater than or equal to 6, as per
-the Bluetooth specification's requirements for master devices. If multiple
+the Bluetooth specification's requirements for central devices. If multiple
 encrypted parameter updates are expected, you can provide multiple parameter
 pairs, separated by commas (eg. `6:7,39:8`). If you have a device that issues
 encrypted PHY update PDUs that don't change the PHY, or puts out encrypted LE
@@ -346,11 +383,11 @@ Launchpad boards, the reset button is located beside the micro USB port.
 ## Scanner Usage
 
 ```
-usage: scanner.py [-h] [-s SERPORT] [-b BAUDRATE] [-c {37,38,39}] [-r RSSI] [-l]
+usage: scanner.py [-h] [-s SERPORT] [-b BAUDRATE] [-c {37,38,39}] [-r RSSI] [-l] [-d] [-o OUTPUT]
 
 Scanner utility for Sniffle BLE5 sniffer
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   -s SERPORT, --serport SERPORT
                         Sniffer serial port name
@@ -360,11 +397,9 @@ optional arguments:
                         Advertising channel to listen on
   -r RSSI, --rssi RSSI  Filter packets by minimum RSSI
   -l, --longrange       Use long range (coded) PHY for primary advertising
+  -d, --decode          Decode advertising data
   -o OUTPUT, --output OUTPUT
                         PCAP output file name
-  -z, --ZMQ             Enable ZMQ server
-  --zmqport             ZMQ Server Port (default:4222)
-  --zmqhost             ZMQ Server IP (default:127.0.0.1)
 ```
 
 The scanner command line arguments work the same as the sniffer. The purpose of
@@ -508,11 +543,11 @@ to enable the Sniffle interface.
 While the original 2019 Sniffle firmware was purely a passive listener, later firmware versions
 added various features to actively transmit packets in various ways. Current Sniffle firmware
 supports acting as both a GAP central and peripheral device, including active scanning, legacy
-and extended advertising, initiating connections, and being connected in a master (central) or
-slave (peripheral) role. The `scanner.py` script performs active scanning. The `initiator.py`
-script initiates a connection to a peripheral and then acts as a connected master. The
+and extended advertising, initiating connections, and being connected in a central or
+peripheral role. The `scanner.py` script performs active scanning. The `initiator.py`
+script initiates a connection to a peripheral and then acts as a connected central. The
 `advertiser.py` script performs legacy advertising and accepts connection requests from other
-devices, transitioning to a connected slave role.
+devices, transitioning to a connected peripheral role.
 
 The transmit functionality of Sniffle is a little different from a traditional HCI-based Bluetooth
 controller, because it gives you very low level control of the exact PDUs being sent at the link
@@ -528,16 +563,28 @@ extended advertising.
 
 ## XDS110 UART Latency
 
-At least at the time of writing, the TI XDS110 debugger included in Launchpad boards has some
-undesirable behaviour in its USB to UART bridge, where at high baud rates, there can be severe
-latency, especially with frequent small writes as done by the Sniffle firmware. This issue has
-been present for years, and is still present as of April 2024 with the XDS110 firmware 3.0.0.28
-bundled with UniFlash 8.6.0. The root cause is that in DMA based operation, the XDS110 firmware
-accumulates UART data in a buffer whose size is proportional to baud rate, and waits for this
-buffer to fill before transferring the data. There is logic to flush this buffer if no new data
-has arrived over the last 15 milliseconds, but this flushing logic is never triggered when Sniffle
-is frequently adding small packets from connection events every few milliseconds. As a result of
-this suboptimal behaviour, sniffed data can appear in delayed bursts on the host.
+Since the fixing of TI issue [EXT_EP-11735](https://sir.ext.ti.com/jira/browse/EXT_EP-11735) in
+mid-2024, the XDS110 debugger (included on TI Launchpad boards) handles high baud rates such as
+2M (as used by Sniffle) in a reasonable manner without excessive latency. However, the latest
+XDS110 firmware still uses buffered DMA-driven operation of UART at such baud rates, and as
+such can still introduce latency up to 30 ms. This latency is inconsequential for use as a sniffer,
+but may be detrimental to more active operations such as host-side code acting as a GATT client
+or server, or performing relay attacks. The modification of XDS110 firmware version 3.0.0.28
+desrcribed below for interrupt-based operation can still greatly reduce latency for such
+time-sensitive operations. It should be possible to make a similar modification to the latest
+XDS110 firmware, but I haven't taken the time to reverse engineer it and find the right bits
+to change.
+
+In mid-2024 and earlier, the firmware of the TI XDS110 debugger (included on Launchpad boards)
+had an undesirable behaviour in its USB to UART bridge, where at high baud rates, there can be severe
+latency, especially with frequent small writes as done by the Sniffle firmware. This issue was
+present for years, and was still present in April 2024 with the XDS110 firmware 3.0.0.28
+bundled with UniFlash 8.6.0. The root cause was that in DMA based operation, the XDS110 firmware
+accumulated UART data in a buffer whose size was proportional to baud rate, and waited for this
+buffer to fill before transferring the data. There was logic to flush this buffer if no new data
+arrived over the last 15 milliseconds, but this flushing logic was never triggered when Sniffle
+was frequently adding small packets from connection events every few milliseconds. As a result of
+this suboptimal behaviour, sniffed data could appear in delayed bursts on the host.
 
 The XDS110 firmware also has an alternate mode for UART operation, where every UART receive
 triggers an interrupt that results in data immediately being passed to the host. This
@@ -569,4 +616,70 @@ run the following commands to flash the modified XDS110 debugger firmware:
 ```
 ./xdsdfu -m
 ./xdsdfu -f firmware_3.0.0.28_fastuart.bin -r
+```
+
+## Relaying Link Layer Traffic
+
+Sniffle can be used to perform [link-layer relaying](https://hardwear.io/netherlands-2022/presentation/bluetooth-LE-link-layer-relay-attacks.pdf)
+of Bluetooth LE traffic. When performing relaying, one Sniffle device acts as a
+BLE central (using `relay_master.py`) and a second Sniffle deice acts as a BLE
+peripheral (using `relay_slave.py`). Master and slave are historic terms for BLE
+central and peripheral respectively. The relay master captures advertising and
+scan response data from the genuine peripheral, then passes it to the relay slave.
+The relay slave transmits advertisements and scan responses mimicking the genuine
+peripheral and accepts connections. Upon accepting a connection, the relay slave
+notifies the relay master, which then initiates a connection to the genuine
+peripheral. From this point onwards, all link layer packets are forwarded
+between the relay master and slave.
+
+The relay master script provides functionality to request faster connection
+intervals on one both sides of the relay to reduce latency. If using the XDS110
+as a USB/UART bridge, be aware that the XDS110 firmware introduces additional
+latency to the relay unless you modify it as described above.
+
+Please note that the relay master script creates a network listener that binds
+to all interfaces (0.0.0.0), and the network protocol used to communicate
+between the relaying devices provides no security. Only use these scripts in
+trusted network environments.
+
+Usage of the relay master (central) and slave (peripheral) scripts is shown below.
+At present, extended advertising is not supported by the relay scripts.
+
+```
+usage: relay_master.py [-h] [-s SERPORT] [-c {37,38,39}] [-m MAC] [-i IRK] [-S STRING]
+                       [-P] [-q] [-Q PRELOAD] [-f] [-p] [-F] [-o OUTPUT]
+
+Relay master script for Sniffle BLE5 sniffer
+
+options:
+  -h, --help            show this help message and exit
+  -s, --serport SERPORT
+                        Sniffer serial port name
+  -c, --advchan {37,38,39}
+                        Advertising channel to listen on
+  -m, --mac MAC         Specify target MAC address
+  -i, --irk IRK         Specify target IRK
+  -S, --string STRING   Specify target by advertisement search string
+  -P, --public          Supplied MAC address is public
+  -q, --quiet           Don't show empty packets
+  -Q, --preload PRELOAD
+                        Preload expected encrypted connection parameter changes
+  -f, --fastslave       Relay slave should request a fast connection interval
+  -p, --pause           Wait for key press on master before relaying
+  -F, --fastmaster      Relay master should specify a fast connection interval
+  -o, --output OUTPUT   PCAP output file name
+```
+
+```
+usage: relay_slave.py [-h] [-s SERPORT] [-M MASTERADDR] [-q]
+
+Relay slave script for Sniffle BLE5 sniffer
+
+options:
+  -h, --help            show this help message and exit
+  -s, --serport SERPORT
+                        Sniffer serial port name
+  -M, --masteraddr MASTERADDR
+                        IP address of relay master
+  -q, --quiet           Don't show empty packets
 ```

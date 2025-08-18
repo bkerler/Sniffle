@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 # Written by Sultan Qasim Khan
-# OpenDroneID mods (c) by B. Kerler
-# Copyright (c) 2018-2024, NCC Group plc
+# OpenDroneID mods Copyright (c) 2024 by B. Kerler
+# Copyright (c) 2018-2025, NCC Group plc
 # Released as open source under GPLv3
 
 import argparse, sys
@@ -26,7 +26,7 @@ pcwriter = None
 def main():
     aparse = argparse.ArgumentParser(description="Host-side receiver for Sniffle BLE5 sniffer")
     aparse.add_argument("-s", "--serport", default=None, help="Sniffer serial port name")
-    aparse.add_argument("-b", "--baudrate", default=None, help="Sniffer serial port baudrate")
+    aparse.add_argument("-b", "--baudrate", default=None, help="Sniffer serial port baud rate")
     aparse.add_argument("-c", "--advchan", default=40, choices=[37, 38, 39], type=int,
             help="Advertising channel to listen on")
     aparse.add_argument("-p", "--pause", action="store_true",
@@ -59,14 +59,14 @@ def main():
             help="Decode advertising data")
     aparse.add_argument("-o", "--output", default=None, help="PCAP output file name")
     aparse.add_argument("-z", "--zmq", action="store_true", help="Enable zmq")
-    aparse.add_argument("--zmqport", default="4222", help="Define zmq port")
-    aparse.add_argument("--zmqhost", default="127.0.0.1", help="Define zmq host")
+    aparse.add_argument("--zmqsetting", default="127.0.0.1:4222", help="Define zmq server settings")
+    aparse.add_argument("-v", "--verbose", action="store_true", help="Print messages")
     args = aparse.parse_args()
 
     if args.zmq:
         import zmq
 
-        url = f"tcp://{args.zmqhost}:{args.zmqport}"
+        url = f"tcp://{args.zmqsetting}"
 
         context = zmq.Context()
         socket = context.socket(zmq.XPUB)
@@ -177,6 +177,8 @@ def main():
                 smsg = msg.to_dict()
                 smsg = json.dumps(smsg)
                 socket.send_string(smsg)
+                if args.verbose:
+                    print_message(msg, args.quiet, args.decode)
             else:
                 print_message(msg, args.quiet, args.decode)
         except SourceDone:
